@@ -1,5 +1,6 @@
 import { Upload, ShieldCheck, Scissors, Rewind, RotateCw, Crop, Menu } from 'lucide-react'
 import AdSlot from './AdSlot'
+import ThemeToggle from './ThemeToggle'
 const NAV = [['Editor', '#editor'], ['Features', '#features'], ['How It Works', '#how'], ['FAQ', '#faq']]
 const FEATURES = [[Scissors, 'Trim video online', 'Cut a clip to exact start and end times, re-encoded so the length is accurate.'], [Rewind, 'Reverse video online', 'Play a clip backwards, with or without reversed audio. Best on short sections.'], [RotateCw, 'Rotate MP4 video', 'Turn a video 90° either way or 180°, baked into the exported frames.'], [Crop, 'Crop video online', 'Drag a crop box or type exact pixels, with square, portrait and widescreen presets.']] as const
 const FAQ = [['Is my video uploaded anywhere?', 'No. Editing runs in your browser with FFmpeg WebAssembly. Your file never leaves your device.'], ['Which formats can I open?', 'MP4, MOV, WEBM, MKV, AVI, M4V, MPEG and MPG. Exports are MP4 or WEBM.'], ['Why did a large video fail?', 'Browsers limit memory, especially on phones. Try a shorter section, a lower resolution, or a computer. Reversing needs the most memory.'], ['Is it really free?', 'Yes. There is no account, watermark or export limit.']]
@@ -10,7 +11,7 @@ export default function Landing({ msg, pick }: { msg: string; pick: (f?: File) =
       <header className="sticky top-0 z-10 flex items-center gap-4 border-b border-neutral-200 bg-[#faf9f7]/95 px-4 py-2">
         <span className="text-xl font-extrabold tracking-tight">Clip<span className="text-[#5b4bff]">Turn</span></span>
         <nav className="ml-6 hidden gap-5 text-sm font-semibold md:flex">{NAV.map(([l, h]) => <a key={h} href={h}>{l}</a>)}</nav>
-        <button onClick={open} className="ml-auto min-h-11 rounded-md bg-[#5b4bff] px-4 font-semibold text-white">Choose Video</button>
+        <span className="ml-auto"><ThemeToggle /></span><button onClick={open} className="min-h-11 rounded-md bg-[#5b4bff] px-4 font-semibold text-white">Choose Video</button>
         <details className="relative md:hidden"><summary aria-label="Menu" className="flex min-h-11 min-w-11 cursor-pointer list-none items-center justify-center"><Menu /></summary>
           <div className="absolute right-0 top-12 w-44 rounded-md border border-neutral-200 bg-white p-1 shadow">{NAV.map(([l, h]) => <a key={h} href={h} className="flex min-h-11 items-center px-3 text-sm font-semibold">{l}</a>)}</div></details>
       </header>

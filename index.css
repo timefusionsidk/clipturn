@@ -2,3 +2,5 @@
 body{font-family:Manrope,system-ui,sans-serif;background:#faf9f7;color:#1c1c22}
 button:focus-visible,input:focus-visible,select:focus-visible,label:focus-within{outline:2px solid #5b4bff;outline-offset:2px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+html.dark{filter:invert(.93) hue-rotate(180deg);background:#fff}
+html.dark video{filter:invert(1) hue-rotate(180deg)}

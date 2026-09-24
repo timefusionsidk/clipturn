@@ -3,6 +3,8 @@ import { Scissors, Rewind, RotateCw, Crop, Undo2, Redo2, Download, X, RefreshCw,
 import Landing from './Landing'
 import Legal from './Legal'
 import AdSlot from './AdSlot'
+import TimeInput from './TimeInput'
+import ThemeToggle from './ThemeToggle'
 import { track } from './lib/analytics'
 import { outDims, rotDims, type Edit, type Meta, type Out } from './lib/edit'
 import { killFFmpeg, runExport } from './lib/ffmpeg'
@@ -42,6 +44,7 @@ export default function App() {
   const [cur, setCur] = useState(0)
   const [muted, setMuted] = useState(false)
   const [rate, setRate] = useState(1)
+  const [sheet, setSheet] = useState(true)
   const [hash, setHash] = useState(location.hash)
   useEffect(() => { const f = () => setHash(location.hash); addEventListener('hashchange', f); return () => removeEventListener('hashchange', f) }, [])
 
@@ -86,7 +89,7 @@ export default function App() {
       setRes({ url: URL.createObjectURL(blob), size: blob.size, name: `${base}-edited.${out.fmt}` }); setStage('done'); track('export_completed')
     } catch (e) {
       if (cancelled.current) setStage('cancelled')
-      else { track('export_failed'); const m = String((e as Error)?.message ?? e); setMsg(/memory|alloc|abort/i.test(m) ? 'Your browser ran out of memory. Try a shorter section or lower resolution.' : m.startsWith('Video') ? m : 'Video processing failed. Try a smaller file or MP4 output.'); setStage('error'); killFFmpeg() }
+      else { track('export_failed'); const m = String((e as Error)?.message ?? e); setMsg(/memory|alloc|abort|out of bounds|RangeError/i.test(m) ? 'Your browser ran out of memory. Try a shorter section or lower resolution.' : m.startsWith('Video') || m.startsWith('The video engine') ? m : 'Video processing failed. Try a smaller file or MP4 output.'); setStage('error'); killFFmpeg() }
     } finally { busy.current = false }
   }
   function cancel() { track('export_cancelled'); cancelled.current = true; killFFmpeg(); setStage('cancelled') }
@@ -137,6 +140,7 @@ export default function App() {
       <span className="text-xl font-extrabold tracking-tight">Clip<span className="text-[#5b4bff]">Turn</span></span>
       {file && <span className="hidden truncate text-sm text-neutral-500 sm:block">{file.name}</span>}
       <div className="ml-auto flex items-center gap-1">
+        <ThemeToggle />
         {stage === 'edit' && <>
           <button aria-label="Undo" disabled={!past.length} onClick={undo} className={`${btn} px-3 disabled:opacity-30`}><Undo2 size={18} /></button>
           <button aria-label="Redo" disabled={!future.length} onClick={redo} className={`${btn} px-3 disabled:opacity-30`}><Redo2 size={18} /></button>
@@ -194,7 +198,7 @@ export default function App() {
     <div className="flex min-h-screen flex-col">
       {header}
       <div className="flex flex-1 flex-col md:flex-row">
-        <nav aria-label="Tools" className="order-3 flex justify-around border-t border-neutral-200 bg-white md:order-1 md:w-20 md:flex-col md:justify-start md:border-r md:border-t-0">
+        <nav aria-label="Tools" className="order-3 flex justify-around max-md:sticky max-md:bottom-0 border-t border-neutral-200 bg-white md:order-1 md:w-20 md:flex-col md:justify-start md:border-r md:border-t-0">
           {TOOLS.map(([id, label, Icon]) => (
             <button key={id} aria-pressed={tool === id} onClick={() => { setTool(id); track('tool_selected', { tool: id }) }} className={`flex min-h-14 flex-1 flex-col items-center justify-center gap-1 text-xs font-semibold md:flex-none md:py-4 ${tool === id ? 'text-[#5b4bff]' : 'text-neutral-600'}`}><Icon size={20} />{label}</button>
           ))}
@@ -208,7 +212,7 @@ export default function App() {
               </div>) })()}
           </div>
           <div className="flex w-full max-w-2xl items-center gap-2">
-            <button aria-label={playing ? 'Pause' : 'Play'} onClick={() => { const v = vid.current; if (v) v.paused ? v.play() : v.pause() }} className={`${btn} px-3`}>{playing ? <Pause size={18} /> : <Play size={18} />}</button>
+            <button aria-label={playing ? 'Pause' : 'Play'} onClick={() => { const v = vid.current; if (v) { if (v.paused) void v.play(); else v.pause() } }} className={`${btn} px-3`}>{playing ? <Pause size={18} /> : <Play size={18} />}</button>
             <input aria-label="Seek" type="range" min={0} max={meta!.duration} step="0.01" value={cur} onChange={e => { if (vid.current) vid.current.currentTime = +e.target.value }} className="min-w-0 flex-1" />
             <span className="hidden text-xs tabular-nums sm:block">{fmtT(cur)} / {fmtT(meta!.duration)}</span>
             <button aria-label={muted ? 'Unmute' : 'Mute'} onClick={() => setMuted(!muted)} className={`${btn} px-3`}>{muted ? <VolumeX size={18} /> : <Volume2 size={18} />}</button>
@@ -218,13 +222,13 @@ export default function App() {
           </div>
           <p className="text-xs text-neutral-500">Preview is approximate. The exported file applies the exact transformation.</p>
         </main>
-        <aside className="order-2 w-full space-y-4 border-neutral-200 bg-[#faf9f7] p-4 md:order-3 md:w-80 md:border-l">
+        <aside className="order-2 w-full border-neutral-200 bg-[#faf9f7] p-4 md:order-3 md:w-80 md:border-l"><button aria-expanded={sheet} onClick={() => setSheet(!sheet)} className="mb-2 min-h-11 w-full rounded-md border border-neutral-300 bg-white font-semibold md:hidden">{sheet ? 'Hide settings' : 'Show settings'}</button><div className={`space-y-4 ${sheet ? '' : 'max-md:hidden'}`}>
           {warn && <p role="alert" className="text-sm text-amber-700">{warn}</p>}
           {msg && <p role="alert" className="text-sm text-red-600">{msg}</p>}
           {tool === 'trim' && meta && <section className="space-y-3">
             <h2 className="font-bold">Trim</h2>
-            <label className="block text-sm">Start (seconds)<input type="number" step="0.001" min={0} max={meta.duration} value={+edit.start.toFixed(3)} onChange={e => tnum(e.target.value, n => commit({ start: clamp(n, 0, edit.end - 0.1) }))} className={num} /></label>
-            <label className="block text-sm">End (seconds)<input type="number" step="0.001" min={0} max={meta.duration} value={+edit.end.toFixed(3)} onChange={e => tnum(e.target.value, n => commit({ end: clamp(n, edit.start + 0.1, meta.duration) }))} className={num} /></label>
+            <TimeInput label="Start" value={edit.start} onCommit={n => n >= edit.end ? 'Start must be before the end time.' : (commit({ start: n }), null)} />
+            <TimeInput label="End" value={edit.end} onCommit={n => n > meta.duration ? 'End cannot exceed the video length.' : n <= edit.start ? 'End must be after the start time.' : (commit({ end: n }), null)} />
             <label className="block text-sm">Start slider<input type="range" min={0} max={meta.duration} step="0.01" value={edit.start} onChange={e => { commit({ start: clamp(+e.target.value, 0, edit.end - 0.1) }); if (vid.current) vid.current.currentTime = +e.target.value }} className="w-full" /></label>
             <label className="block text-sm">End slider<input type="range" min={0} max={meta.duration} step="0.01" value={edit.end} onChange={e => { commit({ end: clamp(+e.target.value, edit.start + 0.1, meta.duration) }); if (vid.current) vid.current.currentTime = +e.target.value }} className="w-full" /></label>
             <div className="grid grid-cols-2 gap-2">
@@ -237,7 +241,7 @@ export default function App() {
           </section>}
           {tool === 'reverse' && <section className="space-y-2">
             <h2 className="font-bold">Reverse</h2>
-            {([['both', 'Reverse video and audio'], ['video', 'Reverse video only (muted)'], ['none', 'Off']] as const).map(([v, l]) => (
+            {([['both', 'Reverse video and audio'], ['fwd', 'Reverse video, keep original audio forward'], ['video', 'Reverse video only (muted)'], ['none', 'Off']] as const).map(([v, l]) => (
               <label key={v} className="flex min-h-11 items-center gap-2"><input type="radio" name="rev" checked={edit.rev === v} onChange={() => commit({ rev: v })} />{l}</label>
             ))}
             <p className="text-sm text-amber-700">Reversing video requires more memory than trimming or rotating. For the best result, trim the video to a shorter section first. Limit: 60 seconds.</p>
@@ -271,7 +275,7 @@ export default function App() {
             <label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" checked={!out.audio} onChange={e => setOut({ ...out, audio: !e.target.checked })} />Remove audio</label>
             <p className="text-xs text-neutral-600">{out.fmt.toUpperCase()} · {od.w} × {od.h} · {fmtT(edit.end - edit.start)} · {out.audio && edit.rev !== 'video' ? 'audio kept' : 'no audio'}<br />{summary}</p>
           </section>
-        </aside>
+        </div></aside>
       </div>
       <AdSlot slot={import.meta.env.VITE_AD_SLOT_EDITOR} />
     </div>

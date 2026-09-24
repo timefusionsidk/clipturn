@@ -1,4 +1,4 @@
-export type Edit = { start: number; end: number; rev: 'none' | 'both' | 'video'; rot: 0 | 90 | 180 | 270; crop: { x: number; y: number; w: number; h: number } | null }
+export type Edit = { start: number; end: number; rev: 'none' | 'both' | 'video' | 'fwd'; rot: 0 | 90 | 180 | 270; crop: { x: number; y: number; w: number; h: number } | null }
 export type Out = { fmt: 'mp4' | 'webm'; q: 'small' | 'balanced' | 'high'; maxH: number; audio: boolean }
 export type Meta = { duration: number; w: number; h: number }
 const even = (n: number) => Math.max(2, Math.floor(n / 2) * 2)

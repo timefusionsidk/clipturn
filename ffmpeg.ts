@@ -16,7 +16,8 @@ export function getFFmpeg(): Promise<FFmpeg> {
 export function killFFmpeg() { ff?.terminate(); ff = null }
 export async function runExport(file: File, m: Meta, e: Edit, o: Out, onStage: (s: string) => void, onProgress: (p: number) => void): Promise<Blob> {
   onStage('Downloading video engine')
-  const f = await getFFmpeg()
+  let f: FFmpeg
+  try { f = await getFFmpeg() } catch { throw new Error('The video engine failed to load. Check your connection and try again.') }
   const { fetchFile } = await import('@ffmpeg/util')
   const name = `out.${o.fmt}`
   const h = ({ progress }: { progress: number }) => onProgress(Math.min(1, Math.max(0, progress)))
