@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import { Scissors, Rewind, RotateCw, Crop, Undo2, Redo2, Download, Upload, X, ShieldCheck, RefreshCw } from 'lucide-react'
+import { Scissors, Rewind, RotateCw, Crop, Undo2, Redo2, Download, X, RefreshCw, Play, Pause, Volume2, VolumeX, Maximize } from 'lucide-react'
+import Landing from './Landing'
+import Legal from './Legal'
+import AdSlot from './AdSlot'
+import { track } from './lib/analytics'
 import { outDims, rotDims, type Edit, type Meta, type Out } from './lib/edit'
 import { killFFmpeg, runExport } from './lib/ffmpeg'
 
@@ -10,7 +14,8 @@ const clamp = (n: number, a: number, b: number) => Math.min(b, Math.max(a, n))
 type Tool = 'trim' | 'reverse' | 'rotate' | 'crop'
 type Stage = 'idle' | 'edit' | 'busy' | 'done' | 'error' | 'cancelled'
 const TOOLS: [Tool, string, typeof Scissors][] = [['trim', 'Trim', Scissors], ['reverse', 'Reverse', Rewind], ['rotate', 'Rotate', RotateCw], ['crop', 'Crop', Crop]]
-const RATIOS: [string, number | null][] = [['Free', null], ['1:1', 1], ['4:5', 4 / 5], ['3:4', 3 / 4], ['16:9', 16 / 9], ['9:16', 9 / 16]]
+const HANDLES = [['nw','left-0 top-0 cursor-nwse-resize'],['n','left-1/2 top-0 -translate-x-1/2 cursor-ns-resize'],['ne','right-0 top-0 cursor-nesw-resize'],['e','right-0 top-1/2 -translate-y-1/2 cursor-ew-resize'],['se','bottom-0 right-0 cursor-nwse-resize'],['s','bottom-0 left-1/2 -translate-x-1/2 cursor-ns-resize'],['sw','bottom-0 left-0 cursor-nesw-resize'],['w','left-0 top-1/2 -translate-y-1/2 cursor-ew-resize']]
+const RATIOS: [string, number | null][] = [['Free', null], ['Original', -1], ['1:1', 1], ['4:5', 4 / 5], ['3:4', 3 / 4], ['16:9', 16 / 9], ['9:16', 9 / 16]]
 
 export default function App() {
   const [stage, setStage] = useState<Stage>('idle')
@@ -31,6 +36,14 @@ export default function App() {
   const vid = useRef<HTMLVideoElement>(null)
   const cancelled = useRef(false)
   const busy = useRef(false)
+  const stageRef = useRef<HTMLDivElement>(null)
+  const [ratio, setRatio] = useState<number | null>(null)
+  const [playing, setPlaying] = useState(false)
+  const [cur, setCur] = useState(0)
+  const [muted, setMuted] = useState(false)
+  const [rate, setRate] = useState(1)
+  const [hash, setHash] = useState(location.hash)
+  useEffect(() => { const f = () => setHash(location.hash); addEventListener('hashchange', f); return () => removeEventListener('hashchange', f) }, [])
 
   useEffect(() => {
     if (stage !== 'busy') return
@@ -47,13 +60,14 @@ export default function App() {
   function pick(f?: File) {
     if (!f) return
     setMsg('')
+    if (typeof WebAssembly === 'undefined' || typeof Worker === 'undefined') return setMsg('This browser cannot run the video engine. Please use a recent version of Chrome, Edge, Firefox or Safari.')
     if (!OK_EXT.test(f.name) && !f.type.startsWith('video/')) return setMsg('Please choose a supported video file.')
     if (f.size === 0) return setMsg('This file appears to be empty or corrupted.')
     if (f.size > 2e9) return setMsg('This video may be too large for your device to process safely.')
     const u = URL.createObjectURL(f); const v = document.createElement('video'); v.preload = 'metadata'
     v.onloadedmetadata = () => {
       if (!isFinite(v.duration) || !v.videoWidth) { URL.revokeObjectURL(u); return setMsg('This video cannot be previewed, so it cannot be edited here. Try an MP4 file.') }
-      reset(); setFile(f); setUrl(u); setMeta({ duration: v.duration, w: v.videoWidth, h: v.videoHeight })
+      reset(); track('video_selected'); setFile(f); setUrl(u); setMeta({ duration: v.duration, w: v.videoWidth, h: v.videoHeight })
       setEdit({ start: 0, end: v.duration, rev: 'none', rot: 0, crop: null }); setPast([]); setFuture([]); setTool('trim'); setStage('edit')
       setWarn(f.size > 5e8 ? 'This video may be too large for browser processing. Try closing other tabs, selecting a shorter section, lowering the export resolution, or using a computer.' : '')
     }
@@ -65,17 +79,17 @@ export default function App() {
     if (!file || !meta || busy.current) return
     const len = edit.end - edit.start
     if (edit.rev !== 'none' && len > 60) return setMsg('Reversing is limited to 60 seconds in the browser. Trim the video to a shorter section first.')
-    busy.current = true; cancelled.current = false; clearResult(); setMsg(''); setProg(0); setStep('Preparing editor'); setStage('busy')
+    track('export_started'); busy.current = true; cancelled.current = false; clearResult(); setMsg(''); setProg(0); setStep('Preparing editor'); setStage('busy')
     try {
       const blob = await runExport(file, meta, edit, out, setStep, setProg)
       const base = file.name.replace(/\.[^.]+$/, '').replace(/[^\w\- ]+/g, '_') || 'video'
-      setRes({ url: URL.createObjectURL(blob), size: blob.size, name: `${base}-edited.${out.fmt}` }); setStage('done')
+      setRes({ url: URL.createObjectURL(blob), size: blob.size, name: `${base}-edited.${out.fmt}` }); setStage('done'); track('export_completed')
     } catch (e) {
       if (cancelled.current) setStage('cancelled')
-      else { const m = String((e as Error)?.message ?? e); setMsg(/memory|alloc|abort/i.test(m) ? 'Your browser ran out of memory. Try a shorter section or lower resolution.' : m.startsWith('Video') ? m : 'Video processing failed. Try a smaller file or MP4 output.'); setStage('error'); killFFmpeg() }
+      else { track('export_failed'); const m = String((e as Error)?.message ?? e); setMsg(/memory|alloc|abort/i.test(m) ? 'Your browser ran out of memory. Try a shorter section or lower resolution.' : m.startsWith('Video') ? m : 'Video processing failed. Try a smaller file or MP4 output.'); setStage('error'); killFFmpeg() }
     } finally { busy.current = false }
   }
-  function cancel() { cancelled.current = true; killFFmpeg(); setStage('cancelled') }
+  function cancel() { track('export_cancelled'); cancelled.current = true; killFFmpeg(); setStage('cancelled') }
 
   // ---------- crop helpers (rotated coordinate system) ----------
   const rd = meta ? rotDims(meta, edit.rot) : { w: 0, h: 0 }
@@ -85,6 +99,7 @@ export default function App() {
     commit({ crop: n })
   }
   const preset = (r: number | null) => {
+    setRatio(r)
     if (r === null) return commit({ crop: null })
     let w = rd.w, h = w / r; if (h > rd.h) { h = rd.h; w = h * r }
     w = Math.floor(w / 2) * 2; h = Math.floor(h / 2) * 2
@@ -93,6 +108,24 @@ export default function App() {
   const setRot = (rot: Edit['rot']) => { setPast(p => [...p.slice(-49), edit]); setFuture([]); setEdit({ ...edit, rot, crop: null }) }
   const tnum = (v: string, f: (n: number) => void) => { const n = parseFloat(v); if (isFinite(n)) f(n) }
 
+  const resetTool = () => { if (!meta) return; setRatio(null); commit(tool === 'trim' ? { start: 0, end: meta.duration } : tool === 'reverse' ? { rev: 'none' } : tool === 'rotate' ? { rot: 0, crop: null } : { crop: null }) }
+  function startDrag(e: React.PointerEvent, mode: string) {
+    e.preventDefault(); e.stopPropagation()
+    const box = stageRef.current!.getBoundingClientRect(); const o = edit.crop ?? { x: 0, y: 0, w: rd.w, h: rd.h }; const k = rd.w / box.width
+    setPast(p => [...p.slice(-49), edit]); setFuture([])
+    const move = (ev: PointerEvent) => {
+      const dx = (ev.clientX - e.clientX) * k, dy = (ev.clientY - e.clientY) * k
+      let { x, y, w, h } = o
+      if (mode === 'm') { x += dx; y += dy } else {
+        if (mode.includes('e')) w += dx; if (mode.includes('s')) h += dy
+        if (mode.includes('w')) { x += dx; w -= dx } if (mode.includes('n')) { y += dy; h -= dy }
+        if (ratio) { if (mode === 'n' || mode === 's') w = h * ratio; else { const nh = w / ratio; if (mode.includes('n')) y += h - nh; h = nh } }
+      }
+      w = clamp(Math.round(w), 16, rd.w); h = clamp(Math.round(h), 16, rd.h); x = clamp(Math.round(x), 0, rd.w - w); y = clamp(Math.round(y), 0, rd.h - h)
+      setEdit(prev => ({ ...prev, crop: { x, y, w, h } }))
+    }
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', () => window.removeEventListener('pointermove', move), { once: true })
+  }
   const od = meta ? outDims(meta, edit, out) : { w: 0, h: 0 }
   const summary = meta ? [`Trimmed ${fmtT(edit.start)}–${fmtT(edit.end)}`, edit.rev !== 'none' && 'Reversed', edit.rot && `Rotated ${edit.rot}°`, edit.crop && `Cropped to ${edit.crop.w} × ${edit.crop.h}`].filter(Boolean).join(' • ') : ''
   const card = 'rounded-lg border border-neutral-200 bg-white'
@@ -115,26 +148,8 @@ export default function App() {
     </header>
   )
 
-  if (stage === 'idle') return (
-    <div>
-      {header}
-      <main className="mx-auto max-w-3xl px-4 py-14 text-center">
-        <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl">Edit videos without uploading them</h1>
-        <p className="mx-auto mt-4 max-w-xl text-lg text-neutral-600">Trim, reverse, rotate or crop your video directly in your browser. Free, private and easy to use.</p>
-        <label onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); pick(e.dataTransfer.files[0]) }}
-          className={`${card} mt-10 flex cursor-pointer flex-col items-center gap-3 border-2 border-dashed border-[#5b4bff]/40 px-6 py-14 hover:bg-[#5b4bff]/5`}>
-          <Upload className="text-[#5b4bff]" />
-          <span className="min-h-11 rounded-md bg-[#5b4bff] px-6 py-2.5 font-semibold text-white">Choose a Video</span>
-          <span className="text-sm text-neutral-500">or drop it here · MP4, MOV, WEBM, MKV, AVI, M4V, MPEG, MPG</span>
-          <input type="file" accept="video/*,.mkv,.avi,.m4v,.mpg,.mpeg" className="sr-only" onChange={e => { pick(e.target.files?.[0]); e.target.value = '' }} />
-        </label>
-        <p role="alert" className="mt-3 min-h-6 text-red-600">{msg}</p>
-        <p className="mt-2 flex items-center justify-center gap-2 text-sm text-neutral-600"><ShieldCheck size={16} />Your video never leaves your device. Everything is processed privately in your browser.</p>
-        <p className="mt-1 text-sm text-neutral-500">Files below 500 MB are recommended. Large videos may exceed browser memory, especially on mobile devices.</p>
-        <p className="mt-6 text-xs text-neutral-500">No uploads · No account · Private browser processing · Free to use. Only edit videos that you own or have permission to use.</p>
-      </main>
-    </div>
-  )
+  if (/^#\/(privacy|terms|copyright|contact)$/.test(hash) && stage !== 'busy') return <Legal page={hash.slice(2)} />
+  if (stage === 'idle') return <Landing msg={msg} pick={pick} />
 
   if (stage === 'busy') return (
     <div>{header}
@@ -155,10 +170,11 @@ export default function App() {
         <p className="mt-3 text-sm text-neutral-600">{res.name} · {out.fmt.toUpperCase()} · {od.w} × {od.h} · {fmtT(edit.end - edit.start)} · {fmtSize(res.size)}</p>
         <p className="text-sm text-neutral-600">{summary}</p>
         <div className="mt-5 flex flex-wrap gap-3">
-          <a href={res.url} download={res.name} className={`${btn} inline-flex items-center gap-2 bg-[#5b4bff] pt-2.5 text-white`}><Download size={18} />Download</a>
+          <a onClick={() => track('video_downloaded')} href={res.url} download={res.name} className={`${btn} inline-flex items-center gap-2 bg-[#5b4bff] pt-2.5 text-white`}><Download size={18} />Download</a>
           <button onClick={() => { clearResult(); setStage('edit') }} className={`${btn} border border-neutral-300 bg-white`}>Edit Again</button>
           <button onClick={reset} className={`${btn} border border-neutral-300 bg-white`}>Start New Video</button>
         </div>
+        <AdSlot slot={import.meta.env.VITE_AD_SLOT_RESULT} />
       </main></div>
   )
 
@@ -180,19 +196,27 @@ export default function App() {
       <div className="flex flex-1 flex-col md:flex-row">
         <nav aria-label="Tools" className="order-3 flex justify-around border-t border-neutral-200 bg-white md:order-1 md:w-20 md:flex-col md:justify-start md:border-r md:border-t-0">
           {TOOLS.map(([id, label, Icon]) => (
-            <button key={id} aria-pressed={tool === id} onClick={() => setTool(id)} className={`flex min-h-14 flex-1 flex-col items-center justify-center gap-1 text-xs font-semibold md:flex-none md:py-4 ${tool === id ? 'text-[#5b4bff]' : 'text-neutral-600'}`}><Icon size={20} />{label}</button>
+            <button key={id} aria-pressed={tool === id} onClick={() => { setTool(id); track('tool_selected', { tool: id }) }} className={`flex min-h-14 flex-1 flex-col items-center justify-center gap-1 text-xs font-semibold md:flex-none md:py-4 ${tool === id ? 'text-[#5b4bff]' : 'text-neutral-600'}`}><Icon size={20} />{label}</button>
           ))}
         </nav>
-        <main className="order-1 flex flex-1 flex-col items-center justify-center bg-neutral-100 p-3 md:order-2">
-          <div className="flex h-[45vh] w-full items-center justify-center overflow-hidden md:h-[60vh]">
-            <div className="relative inline-block">
-              <video ref={vid} src={url} controls playsInline className="max-h-[45vh] max-w-full md:max-h-[60vh]" style={{ transform: `rotate(${edit.rot}deg) scale(${edit.rot % 180 ? 0.56 : 1})`, transition: 'transform .2s' }} />
-              {tool === 'crop' && edit.crop && edit.rot === 0 && meta && (
-                <div className="pointer-events-none absolute border-2 border-[#5b4bff] shadow-[0_0_0_9999px_rgba(0,0,0,.45)]" style={{ left: `${edit.crop.x / meta.w * 100}%`, top: `${edit.crop.y / meta.h * 100}%`, width: `${edit.crop.w / meta.w * 100}%`, height: `${edit.crop.h / meta.h * 100}%` }} />
-              )}
-            </div>
+        <main className="order-1 flex flex-1 flex-col items-center justify-center gap-2 bg-neutral-100 p-3 md:order-2">
+          <div ref={stageRef} className="relative overflow-hidden bg-black" style={{ aspectRatio: `${rd.w}/${rd.h}`, width: `min(100%, calc(55vh * ${rd.w / rd.h}))`, containerType: 'size' }}>
+            <video ref={vid} src={url} playsInline muted={muted} onTimeUpdate={e => setCur(e.currentTarget.currentTime)} onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} className="absolute left-1/2 top-1/2 max-w-none" style={{ width: edit.rot % 180 ? '100cqh' : '100cqw', height: edit.rot % 180 ? '100cqw' : '100cqh', transform: `translate(-50%,-50%) rotate(${edit.rot}deg)`, transition: 'transform .2s' }} />
+            {tool === 'crop' && (() => { const c = edit.crop ?? { x: 0, y: 0, w: rd.w, h: rd.h }; return (
+              <div onPointerDown={e => startDrag(e, 'm')} className="absolute cursor-move touch-none border-2 border-[#5b4bff] shadow-[0_0_0_9999px_rgba(0,0,0,.5)]" style={{ left: `${c.x / rd.w * 100}%`, top: `${c.y / rd.h * 100}%`, width: `${c.w / rd.w * 100}%`, height: `${c.h / rd.h * 100}%` }}>
+                {HANDLES.map(([m, cls]) => <span key={m} onPointerDown={e => startDrag(e, m)} className={`absolute h-7 w-7 touch-none rounded-sm border-2 border-white bg-[#5b4bff] ${cls}`} />)}
+              </div>) })()}
           </div>
-          <p className="mt-2 text-xs text-neutral-500">Preview is approximate. The exported file applies the exact transformation.</p>
+          <div className="flex w-full max-w-2xl items-center gap-2">
+            <button aria-label={playing ? 'Pause' : 'Play'} onClick={() => { const v = vid.current; if (v) v.paused ? v.play() : v.pause() }} className={`${btn} px-3`}>{playing ? <Pause size={18} /> : <Play size={18} />}</button>
+            <input aria-label="Seek" type="range" min={0} max={meta!.duration} step="0.01" value={cur} onChange={e => { if (vid.current) vid.current.currentTime = +e.target.value }} className="min-w-0 flex-1" />
+            <span className="hidden text-xs tabular-nums sm:block">{fmtT(cur)} / {fmtT(meta!.duration)}</span>
+            <button aria-label={muted ? 'Unmute' : 'Mute'} onClick={() => setMuted(!muted)} className={`${btn} px-3`}>{muted ? <VolumeX size={18} /> : <Volume2 size={18} />}</button>
+            <input aria-label="Volume" type="range" min={0} max={1} step="0.05" defaultValue={1} onChange={e => { if (vid.current) vid.current.volume = +e.target.value }} className="hidden w-16 sm:block" />
+            <select aria-label="Preview speed" value={rate} onChange={e => { setRate(+e.target.value); if (vid.current) vid.current.playbackRate = +e.target.value }} className="min-h-11 rounded-md border border-neutral-300 bg-white px-1 text-sm">{[0.5, 1, 1.5, 2].map(r => <option key={r} value={r}>{r}×</option>)}</select>
+            <button aria-label="Fullscreen" onClick={() => stageRef.current?.requestFullscreen?.()} className={`${btn} px-3`}><Maximize size={18} /></button>
+          </div>
+          <p className="text-xs text-neutral-500">Preview is approximate. The exported file applies the exact transformation.</p>
         </main>
         <aside className="order-2 w-full space-y-4 border-neutral-200 bg-[#faf9f7] p-4 md:order-3 md:w-80 md:border-l">
           {warn && <p role="alert" className="text-sm text-amber-700">{warn}</p>}
@@ -201,8 +225,8 @@ export default function App() {
             <h2 className="font-bold">Trim</h2>
             <label className="block text-sm">Start (seconds)<input type="number" step="0.001" min={0} max={meta.duration} value={+edit.start.toFixed(3)} onChange={e => tnum(e.target.value, n => commit({ start: clamp(n, 0, edit.end - 0.1) }))} className={num} /></label>
             <label className="block text-sm">End (seconds)<input type="number" step="0.001" min={0} max={meta.duration} value={+edit.end.toFixed(3)} onChange={e => tnum(e.target.value, n => commit({ end: clamp(n, edit.start + 0.1, meta.duration) }))} className={num} /></label>
-            <label className="block text-sm">Start slider<input type="range" min={0} max={meta.duration} step="0.01" value={edit.start} onChange={e => commit({ start: clamp(+e.target.value, 0, edit.end - 0.1) })} className="w-full" /></label>
-            <label className="block text-sm">End slider<input type="range" min={0} max={meta.duration} step="0.01" value={edit.end} onChange={e => commit({ end: clamp(+e.target.value, edit.start + 0.1, meta.duration) })} className="w-full" /></label>
+            <label className="block text-sm">Start slider<input type="range" min={0} max={meta.duration} step="0.01" value={edit.start} onChange={e => { commit({ start: clamp(+e.target.value, 0, edit.end - 0.1) }); if (vid.current) vid.current.currentTime = +e.target.value }} className="w-full" /></label>
+            <label className="block text-sm">End slider<input type="range" min={0} max={meta.duration} step="0.01" value={edit.end} onChange={e => { commit({ end: clamp(+e.target.value, edit.start + 0.1, meta.duration) }); if (vid.current) vid.current.currentTime = +e.target.value }} className="w-full" /></label>
             <div className="grid grid-cols-2 gap-2">
               <button className={`${btn} border border-neutral-300 bg-white text-sm`} onClick={() => commit({ start: clamp(vid.current?.currentTime ?? 0, 0, edit.end - 0.1) })}>Start = playhead</button>
               <button className={`${btn} border border-neutral-300 bg-white text-sm`} onClick={() => commit({ end: clamp(vid.current?.currentTime ?? 0, edit.start + 0.1, meta.duration) })}>End = playhead</button>
@@ -227,7 +251,8 @@ export default function App() {
           </section>}
           {tool === 'crop' && <section className="space-y-3">
             <h2 className="font-bold">Crop</h2>
-            <div className="flex flex-wrap gap-2">{RATIOS.map(([l, r]) => <button key={l} onClick={() => preset(r)} className={`${btn} border border-neutral-300 bg-white px-3 text-sm`}>{l}</button>)}</div>
+            <div className="flex flex-wrap gap-2">{RATIOS.map(([l, r]) => <button key={l} onClick={() => preset(r === -1 ? rd.w / rd.h : r)} className={`${btn} border border-neutral-300 bg-white px-3 text-sm`}>{l}</button>)}</div>
+            <label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" checked={ratio !== null} onChange={e => setRatio(e.target.checked ? (edit.crop ? edit.crop.w / edit.crop.h : rd.w / rd.h) : null)} />Lock aspect ratio</label>
             <div className="grid grid-cols-2 gap-2">
               {(['x', 'y', 'w', 'h'] as const).map(k => (
                 <label key={k} className="text-sm">{k === 'w' ? 'Width' : k === 'h' ? 'Height' : k.toUpperCase()}
@@ -237,6 +262,7 @@ export default function App() {
             <button className={`${btn} border border-neutral-300 bg-white text-sm`} onClick={() => edit.crop && commit({ crop: { ...edit.crop, x: Math.floor((rd.w - edit.crop.w) / 2), y: Math.floor((rd.h - edit.crop.h) / 2) } })}>Centre crop</button>
             <p className="text-sm text-neutral-600">Coordinates are in the rotated frame ({rd.w} × {rd.h}). Overlay shows when rotation is Original.</p>
           </section>}
+          <button className={`${btn} w-full border border-neutral-300 bg-white text-sm`} onClick={resetTool}>Reset {tool}</button>
           <section className={`${card} space-y-2 p-3`}>
             <h2 className="font-bold">Output</h2>
             <label className="block text-sm">Format<select className={num} value={out.fmt} onChange={e => setOut({ ...out, fmt: e.target.value as Out['fmt'] })}><option value="mp4">MP4</option><option value="webm">WEBM</option></select></label>
@@ -247,6 +273,7 @@ export default function App() {
           </section>
         </aside>
       </div>
+      <AdSlot slot={import.meta.env.VITE_AD_SLOT_EDITOR} />
     </div>
   )
 }
