@@ -1,5 +1,5 @@
 import { useEffect, useId, useState } from 'react'
-import { fmtHMS, parseT } from './lib/time'
+import { fmtHMS, parseT } from './time'
 export default function TimeInput({ label, value, onCommit }: { label: string; value: number; onCommit: (n: number) => string | null }) {
   const [t, setT] = useState(fmtHMS(value)); const [err, setErr] = useState(''); const id = useId()
   useEffect(() => setT(fmtHMS(value)), [value])
