@@ -5,9 +5,9 @@ import Legal from './Legal'
 import AdSlot from './AdSlot'
 import TimeInput from './TimeInput'
 import ThemeToggle from './ThemeToggle'
-import { track } from './lib/analytics'
-import { outDims, rotDims, type Edit, type Meta, type Out } from './lib/edit'
-import { killFFmpeg, runExport } from './lib/ffmpeg'
+import { track } from './analytics'
+import { outDims, rotDims, type Edit, type Meta, type Out } from './edit'
+import { killFFmpeg, runExport } from './ffmpeg'
 
 const OK_EXT = /\.(mp4|mov|webm|mkv|avi|m4v|mpe?g)$/i
 const fmtT = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, '0')}`
