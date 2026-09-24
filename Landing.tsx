@@ -8,10 +8,10 @@ export default function Landing({ msg, pick }: { msg: string; pick: (f?: File) =
   const open = () => document.getElementById('file-input')?.click()
   return (
     <div>
-      <header className="sticky top-0 z-10 flex items-center gap-4 border-b border-neutral-200 bg-[#faf9f7]/95 px-4 py-2">
+      <header className="sticky top-0 z-10 flex items-center gap-4 border-b border-neutral-200/80 bg-[#faf9f7]/80 px-4 py-3">
         <span className="text-xl font-extrabold tracking-tight">Clip<span className="text-[#5b4bff]">Turn</span></span>
         <nav className="ml-6 hidden gap-5 text-sm font-semibold md:flex">{NAV.map(([l, h]) => <a key={h} href={h}>{l}</a>)}</nav>
-        <span className="ml-auto"><ThemeToggle /></span><button onClick={open} className="min-h-11 rounded-md bg-[#5b4bff] px-4 font-semibold text-white">Choose Video</button>
+        <span className="ml-auto"><ThemeToggle /></span><button onClick={open} className="min-h-11 rounded-full bg-[#5b4bff] px-5 font-semibold text-white">Choose Video</button>
         <details className="relative md:hidden"><summary aria-label="Menu" className="flex min-h-11 min-w-11 cursor-pointer list-none items-center justify-center"><Menu /></summary>
           <div className="absolute right-0 top-12 w-44 rounded-md border border-neutral-200 bg-white p-1 shadow">{NAV.map(([l, h]) => <a key={h} href={h} className="flex min-h-11 items-center px-3 text-sm font-semibold">{l}</a>)}</div></details>
       </header>
@@ -19,8 +19,8 @@ export default function Landing({ msg, pick }: { msg: string; pick: (f?: File) =
         <section id="editor" className="mx-auto max-w-3xl px-4 py-14 text-center">
           <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl">Edit videos without uploading them</h1>
           <p className="mx-auto mt-4 max-w-xl text-lg text-neutral-600">Trim, reverse, rotate or crop your video directly in your browser. Free, private and easy to use.</p>
-          <label onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); pick(e.dataTransfer.files[0]) }} className="mt-10 flex cursor-pointer flex-col items-center gap-3 rounded-lg border-2 border-dashed border-[#5b4bff]/40 bg-white px-6 py-14 transition-colors hover:bg-[#5b4bff]/5">
-            <Upload className="text-[#5b4bff]" /><span className="min-h-11 rounded-md bg-[#5b4bff] px-6 py-2.5 font-semibold text-white">Choose a Video</span>
+          <label onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); pick(e.dataTransfer.files[0]) }} className="mt-10 flex cursor-pointer flex-col items-center gap-3 rounded-[28px] border-2 border-dashed border-[#5b4bff]/40 bg-white/80 px-6 py-14 shadow-[0_14px_45px_rgba(0,0,0,.06)] transition-colors hover:bg-[#5b4bff]/5">
+            <Upload className="text-[#5b4bff]" /><span className="min-h-11 rounded-full bg-[#5b4bff] px-6 py-2.5 font-semibold text-white">Choose a Video</span>
             <span className="text-sm text-neutral-500">or drop it here · MP4, MOV, WEBM, MKV, AVI, M4V, MPEG, MPG</span>
             <input id="file-input" type="file" accept="video/*,.mkv,.avi,.m4v,.mpg,.mpeg" className="sr-only" onChange={e => { pick(e.target.files?.[0]); e.target.value = '' }} />
           </label>
