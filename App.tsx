@@ -236,19 +236,23 @@ export default function App() {
         <aside className="order-2 w-full border-neutral-200 bg-[#faf9f7] p-4 md:order-3 md:w-80 md:border-l"><button aria-expanded={sheet} onClick={() => setSheet(!sheet)} className="mb-2 min-h-11 w-full rounded-md border border-neutral-300 bg-white font-semibold md:hidden">{sheet ? 'Hide settings' : 'Show settings'}</button><div className={`space-y-4 ${sheet ? '' : 'max-md:hidden'}`}>
           {warn && <p role="alert" className="text-sm text-amber-700">{warn}</p>}
           {msg && <p role="alert" className="text-sm text-red-600">{msg}</p>}
-          {tool === 'trim' && meta && <section className="space-y-3">
-            <h2 className="font-bold">Trim</h2>
+          {tool === 'trim' && meta && <section className="space-y-4">
+            <div className="flex items-center justify-between"><div><h2 className="font-bold">Trim video</h2><p className="mt-0.5 text-xs text-neutral-500">Choose exactly the part you want to keep.</p></div><span className="rounded-full bg-[#5b4bff]/10 px-2.5 py-1 text-xs font-semibold text-[#5b4bff]">{fmtT(edit.end - edit.start)}</span></div>
             <TimeInput label="Start" value={edit.start} onCommit={n => n >= edit.end ? 'Start must be before the end time.' : (commit({ start: n }), null)} />
             <TimeInput label="End" value={edit.end} onCommit={n => n > meta.duration ? 'End cannot exceed the video length.' : n <= edit.start ? 'End must be after the start time.' : (commit({ end: n }), null)} />
-            <label className="block text-sm">Start slider<input type="range" min={0} max={meta.duration} step="0.01" value={edit.start} onChange={e => { commit({ start: clamp(+e.target.value, 0, edit.end - 0.1) }); if (vid.current) vid.current.currentTime = +e.target.value }} className="w-full" /></label>
-            <label className="block text-sm">End slider<input type="range" min={0} max={meta.duration} step="0.01" value={edit.end} onChange={e => { commit({ end: clamp(+e.target.value, edit.start + 0.1, meta.duration) }); if (vid.current) vid.current.currentTime = +e.target.value }} className="w-full" /></label>
-            <div className="grid grid-cols-2 gap-2">
-              <button className={`${btn} border border-neutral-300 bg-white text-sm`} onClick={() => commit({ start: clamp(vid.current?.currentTime ?? 0, 0, edit.end - 0.1) })}>Start = playhead</button>
-              <button className={`${btn} border border-neutral-300 bg-white text-sm`} onClick={() => commit({ end: clamp(vid.current?.currentTime ?? 0, edit.start + 0.1, meta.duration) })}>End = playhead</button>
-              <button className={`${btn} border border-neutral-300 bg-white text-sm`} onClick={() => commit({ start: 0, end: meta.duration })}>Full length</button>
-              <button className={`${btn} border border-neutral-300 bg-white text-sm`} onClick={() => { const v = vid.current; if (!v) return; v.currentTime = edit.start; v.play(); const s = () => { if (v.currentTime >= edit.end) { v.pause(); v.removeEventListener('timeupdate', s) } }; v.addEventListener('timeupdate', s) }}>Play selection</button>
+            <div className="space-y-3 rounded-xl border border-neutral-200 bg-white p-3">
+              <label className="block text-xs font-semibold uppercase tracking-wide text-neutral-500">Start point<input aria-label="Start trim position" type="range" min={0} max={meta.duration} step="0.01" value={edit.start} onChange={e => { commit({ start: clamp(+e.target.value, 0, edit.end - 0.1) }); if (vid.current) vid.current.currentTime = +e.target.value }} className="mt-2 w-full" /></label>
+              <label className="block text-xs font-semibold uppercase tracking-wide text-neutral-500">End point<input aria-label="End trim position" type="range" min={0} max={meta.duration} step="0.01" value={edit.end} onChange={e => { commit({ end: clamp(+e.target.value, edit.start + 0.1, meta.duration) }); if (vid.current) vid.current.currentTime = +e.target.value }} className="mt-2 w-full" /></label>
             </div>
-            <p className="text-sm text-neutral-600">Original {fmtT(meta.duration)} · Selected {fmtT(edit.end - edit.start)} · Removed {fmtT(meta.duration - (edit.end - edit.start))}</p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <button className="min-h-14 rounded-xl border border-[#5b4bff]/40 bg-[#5b4bff]/5 px-3 text-left transition-colors hover:bg-[#5b4bff]/10" onClick={() => commit({ start: clamp(vid.current?.currentTime ?? 0, 0, edit.end - 0.1) })}><span className="block text-sm font-bold text-[#5b4bff]">Set start to playhead</span><span className="mt-0.5 block text-xs text-neutral-600">Keep video from the current position</span></button>
+              <button className="min-h-14 rounded-xl border border-[#5b4bff]/40 bg-[#5b4bff]/5 px-3 text-left transition-colors hover:bg-[#5b4bff]/10" onClick={() => commit({ end: clamp(vid.current?.currentTime ?? 0, edit.start + 0.1, meta.duration) })}><span className="block text-sm font-bold text-[#5b4bff]">Set end to playhead</span><span className="mt-0.5 block text-xs text-neutral-600">Stop video at the current position</span></button>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button className={`${btn} border border-neutral-300 bg-white text-sm`} onClick={() => commit({ start: 0, end: meta.duration })}>Use full video</button>
+              <button className={`${btn} border border-neutral-300 bg-white text-sm`} onClick={() => { const v = vid.current; if (!v) return; v.currentTime = edit.start; v.play(); const s = () => { if (v.currentTime >= edit.end) { v.pause(); v.removeEventListener('timeupdate', s) } }; v.addEventListener('timeupdate', s) }}>Preview selection</button>
+            </div>
+            <p className="rounded-lg bg-neutral-100 px-3 py-2 text-xs text-neutral-600">Original {fmtT(meta.duration)} <span className="px-1">•</span> Keeping {fmtT(edit.end - edit.start)} <span className="px-1">•</span> Removing {fmtT(meta.duration - (edit.end - edit.start))}</p>
           </section>}
           {tool === 'reverse' && <section className="space-y-2">
             <h2 className="font-bold">Reverse</h2>
