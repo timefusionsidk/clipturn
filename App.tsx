@@ -59,6 +59,16 @@ export default function App() {
   const redo = () => { if (!future.length) return; setPast(p => [...p, edit]); setEdit(future[0]); setFuture(future.slice(1)) }
   const clearResult = () => { if (res) URL.revokeObjectURL(res.url); setRes(null) }
   const reset = () => { clearResult(); if (url) URL.revokeObjectURL(url); killFFmpeg(); setFile(null); setUrl(''); setMeta(null); setStage('idle'); setMsg(''); setWarn('') }
+  const downloadResult = (event: React.MouseEvent<HTMLAnchorElement>) => {
+    track('video_downloaded')
+    // iOS Safari often ignores a[download] for Blob URLs. Opening the Blob URL
+    // synchronously from this tap keeps the Share sheet's Save Video/Files flow available.
+    const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+    if (ios && res) {
+      event.preventDefault()
+      window.open(res.url, '_blank')
+    }
+  }
 
   function pick(f?: File) {
     if (!f) return
@@ -175,7 +185,7 @@ export default function App() {
         <p className="mt-3 text-sm text-neutral-600">{res.name} · {out.fmt.toUpperCase()} · {od.w} × {od.h} · {fmtT(edit.end - edit.start)} · {fmtSize(res.size)}</p>
         <p className="text-sm text-neutral-600">{summary}</p>
         <div className="mt-5 flex flex-wrap gap-3">
-          <a onClick={() => track('video_downloaded')} href={res.url} download={res.name} className={`${btn} inline-flex items-center gap-2 bg-[#5b4bff] pt-2.5 text-white`}><Download size={18} />Download</a>
+          <a onClick={downloadResult} href={res.url} download={res.name} className={`${btn} inline-flex items-center gap-2 bg-[#5b4bff] pt-2.5 text-white`}><Download size={18} />Download</a>
           <button onClick={() => { clearResult(); setStage('edit') }} className={`${btn} border border-neutral-300 bg-white`}>Edit Again</button>
           <button onClick={reset} className={`${btn} border border-neutral-300 bg-white`}>Start New Video</button>
         </div>
