@@ -11,7 +11,7 @@ export default function Legal({ page }: { page: string }) {
       <a href="/" className="text-sm font-semibold text-[#5b4bff]">← Back to ClipTurn</a>
       <h1 className="mt-4 text-3xl font-extrabold">{title}</h1>
       {paras.map(p => <p key={p} className="mt-4 leading-7 text-neutral-700">{p}</p>)}
-      {page === 'contact' && <a href="https://github.com/timefusionsidk/clipturn/issues/new" target="_blank" rel="noreferrer" className="mt-6 inline-flex min-h-11 items-center rounded-md bg-[#5b4bff] px-4 font-semibold text-white">Contact project support</a>}
+      {page === 'contact' && <a href="mailto:timefusions.idk@gmail.com" className="mt-6 inline-flex min-h-11 items-center rounded-md bg-[#5b4bff] px-4 font-semibold text-white">timefusions.idk@gmail.com</a>}
     </main>
   )
 }
