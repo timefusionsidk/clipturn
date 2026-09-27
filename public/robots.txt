@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://clipturn.vercel.app/sitemap.xml
