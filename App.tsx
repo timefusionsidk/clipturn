@@ -152,7 +152,8 @@ export default function App() {
     </header>
   )
 
-  if (/^#\/(privacy|terms|copyright|contact)$/.test(hash) && stage !== 'busy') return <Legal page={hash.slice(2)} />
+  const legalPath = location.pathname.match(/^\/(privacy|terms|copyright|contact)\/?$/)?.[1]
+  if ((legalPath || /^#\/(privacy|terms|copyright|contact)$/.test(hash)) && stage !== 'busy') return <Legal page={legalPath ?? hash.slice(2)} />
   if (stage === 'idle') return <Landing msg={msg} pick={pick} />
 
   if (stage === 'busy') return (
